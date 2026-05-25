@@ -1,7 +1,6 @@
-package main
+package gevmitter
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -41,15 +40,16 @@ func (ev *EventEmitter[T]) Off(eventname string) {
 }
 func (ev *EventEmitter[T]) Once(eventname string, fn HandlerFunc[T]) {
 	var once sync.Once
-	ev.On(eventname, func(data T) error {
+	var wrapped HandlerFunc[T]
+	wrapped = func(data T) error {
+		var err error
 		once.Do(func() {
-			fn(data)
+			err = fn(data)
 			ev.Off(eventname)
 		})
-
-		return nil
-	})
-
+		return err
+	}
+	ev.On(eventname, wrapped)
 }
 func (ev *EventEmitter[T]) EmitAsync(eventname string, data T) {
 	ev.mu.RLock()
@@ -59,24 +59,4 @@ func (ev *EventEmitter[T]) EmitAsync(eventname string, data T) {
 	for _, fn := range handlers {
 		go fn(data)
 	}
-}
-
-type User struct {
-	name string
-	age  int
-}
-
-func main() {
-	emitter := NewEmitter[User]()
-	emitter.On("user_created", func(user User) error {
-		fmt.Println("hello user:", user.name, user.age)
-		return nil
-	})
-
-	emitter.Once("say_hi", func(data User) error {
-		fmt.Println("say hi man")
-		return nil
-	})
-	emitter.Emit("say_hi", User{name: "man", age: 12})
-	emitter.Emit("user_created", User{name: "johnny", age: 12})
 }
